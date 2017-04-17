@@ -98,7 +98,7 @@ func (b *Boolean) String() string       { return b.Token.Literal }
 
 type NumberLiteral struct {
 	Token token.Token
-	Value float64
+	Value float32
 }
 
 func (il *NumberLiteral) expressionNode()      {}

@@ -13,6 +13,7 @@ const (
 	LOWEST
 	EQUALS      // ==
 	LESSGREATER // > or <
+	FILTER      // #
 	SUM         // +
 	PRODUCT     // *
 	PREFIX      // -X or !X
@@ -23,6 +24,7 @@ var precedences = map[token.TokenType]int{
 	token.NOT_EQ:   EQUALS,
 	token.LT:       LESSGREATER,
 	token.GT:       LESSGREATER,
+	token.FILTER:   FILTER,
 	token.PLUS:     SUM,
 	token.MINUS:    SUM,
 	token.SLASH:    PRODUCT,
@@ -58,6 +60,7 @@ func New(l *lexer.Lexer) *Parser {
 	p.registerPrefix(token.LPAREN, p.parseGroupedExpression)
 
 	p.infixParseFns = make(map[token.TokenType]infixParseFn)
+	p.registerInfix(token.FILTER, p.parseInfixExpression)
 	p.registerInfix(token.PLUS, p.parseInfixExpression)
 	p.registerInfix(token.MINUS, p.parseInfixExpression)
 	p.registerInfix(token.SLASH, p.parseInfixExpression)
@@ -191,14 +194,14 @@ func (p *Parser) parseIdentifier() ast.Expression {
 func (p *Parser) parseNumberLiteral() ast.Expression {
 	lit := &ast.NumberLiteral{Token: p.curToken}
 
-	value, err := strconv.ParseFloat(p.curToken.Literal, 64)
+	value, err := strconv.ParseFloat(p.curToken.Literal, 32)
 	if err != nil {
 		msg := fmt.Sprintf("could not parse %q as integer", p.curToken.Literal)
 		p.errors = append(p.errors, msg)
 		return nil
 	}
 
-	lit.Value = value
+	lit.Value = float32(value)
 
 	return lit
 }

@@ -1,8 +1,8 @@
 package object
 
 import (
+	"../raster"
 	"fmt"
-	"image"
 )
 
 type ObjectType string
@@ -24,28 +24,20 @@ type Object interface {
 }
 
 type Raster struct {
-	Value image.Image
+	Value raster.FlexRaster
 }
 
-func (i *Raster) Type() ObjectType { return RASTER_OBJ }
-func (i *Raster) Inspect() string {
-	switch t := i.Value.(type) {
-	case *image.Gray:
-		return fmt.Sprintf("%v", t)
-	case *image.Gray16:
-		return fmt.Sprintf("%v", t)
-	default:
-		return "ERROR: Raster type not recognised"
-	}
-
+func (r *Raster) Type() ObjectType { return RASTER_OBJ }
+func (r *Raster) Inspect() string {
+	return fmt.Sprintf("%v", r)
 }
 
 type Number struct {
-	Value float64
+	Value float32
 }
 
-func (i *Number) Type() ObjectType { return NUMBER_OBJ }
-func (i *Number) Inspect() string  { return fmt.Sprintf("%f", i.Value) }
+func (n *Number) Type() ObjectType { return NUMBER_OBJ }
+func (n *Number) Inspect() string  { return fmt.Sprintf("%f", n.Value) }
 
 type Boolean struct {
 	Value bool

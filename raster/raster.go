@@ -1,5 +1,42 @@
 package raster
 
+import (
+	"fmt"
+	"strconv"
+)
+
+const SIZE_OF_UINT16 = 2
+
+type RasterType string
+
+const (
+	BOOL    = RasterType("BOOL")
+	UINT8   = RasterType("UINT8")
+	INT16   = RasterType("INT16")
+	UINT16  = RasterType("UINT16")
+	FLOAT32 = RasterType("FLOAT32")
+)
+
+type FlexRaster struct {
+	RasterType
+	Height, Width int
+	Data          []float32
+	NoData        float32
+}
+
+func GetRaster(band string) (*FlexRaster, error) {
+	fmt.Println(band)
+	value, _ := strconv.ParseFloat(band[1:], 32)
+
+	out := make([]float32, int(256*256))
+	for i, _ := range out {
+		out[i] = float32(value)
+	}
+
+	return &FlexRaster{UINT16, 256, 256, out, 0.0}, nil
+}
+
+/*
 // #include "gdal.h"
 // #include "cpl_string.h"
 // #cgo LDFLAGS: -lgdal
@@ -12,18 +49,7 @@ package raster
 // }
 import "C"
 
-import (
-	"fmt"
-	"image"
-	"image/png"
-	"os"
-	"reflect"
-	"unsafe"
-)
-
-const SIZE_OF_UINT16 = 2
-
-func GetRaster(band string) (*image.Gray16, error) {
+func GetRaster(band string) (*FlexRaster, error) {
 	C.GDALAllRegister()
 
 	path := fmt.Sprintf("/g/data3/fr5/prl900/LS8_test/LC81390452014295LGN00_%s.TIF", band)
@@ -45,19 +71,19 @@ func GetRaster(band string) (*image.Gray16, error) {
 
 	nXSize := C.GDALGetRasterBandXSize(hBand)
 	nYSize := C.GDALGetRasterBandYSize(hBand)
-	fmt.Println("Size", nXSize, nYSize)
+	nodata := float32(C.GDALGetRasterNoDataValue(hBand, nil))
 	canvas := make([]uint16, int(nXSize*nYSize))
 	C.GDALRasterIO(hBand, C.GF_Read, 0, 0, nXSize, nYSize, unsafe.Pointer(&canvas[0]), nXSize, nYSize, C.GDT_UInt16, 0, 0)
-	// Get the slice header
-	header := *(*reflect.SliceHeader)(unsafe.Pointer(&canvas))
-	// The length and capacity of the slice are different.
-	header.Len *= SIZE_OF_UINT16
-	header.Cap *= SIZE_OF_UINT16
 
-	return &image.Gray16{Pix: *(*[]byte)(unsafe.Pointer(&header)), Stride: int(nXSize * SIZE_OF_UINT16), Rect: image.Rect(0, 0, int(nXSize), int(nYSize))}, nil
+	out := make([]float32, int(nXSize*nYSize))
+	for i, value := range canvas {
+		out[i] = float32(value)
+	}
+
+	return &FlexRaster{UINT16, int(nXSize), int(nYSize), out, nodata}, nil
 }
 
-func SaveRaster(path string, img image.Image) error {
+func SaveRaster(path string, rast FlexRaster) error {
 	out, err := os.Create(path)
 	if err != nil {
 		return err
@@ -69,7 +95,6 @@ func SaveRaster(path string, img image.Image) error {
 	return nil
 }
 
-/*
 func main() {
 	img, err := GetLS8Raster("./LC81390452014295LGN00_B1.TIF")
 	if err != nil {

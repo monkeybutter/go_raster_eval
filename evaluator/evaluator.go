@@ -5,8 +5,6 @@ import (
 	"../object"
 	"../raster"
 	"fmt"
-	"image"
-	"image/color"
 )
 
 var (
@@ -191,264 +189,158 @@ func evalNUMBERInfixExpression(operator string, left, right object.Object) objec
 
 func evalRASTERNUMBERInfixExpression(operator string, left, right object.Object) object.Object {
 	rightVal := right.(*object.Number).Value
+	leftVal := left.(*object.Raster).Value
 
-	switch leftVal := left.(*object.Raster).Value.(type) {
-	case *image.Gray:
-		canvas := image.NewGray(leftVal.Bounds())
-		b := leftVal.Bounds()
-		switch operator {
-		case "+":
-			for y := b.Min.Y; y < b.Max.Y; y++ {
-				for x := b.Min.X; x < b.Max.X; x++ {
-					canvas.Set(x, y, color.Gray{Y: uint8(float64(leftVal.GrayAt(x, y).Y) + rightVal)})
-				}
-			}
-			return &object.Raster{Value: canvas}
-		case "-":
-			for y := b.Min.Y; y < b.Max.Y; y++ {
-				for x := b.Min.X; x < b.Max.X; x++ {
-					canvas.Set(x, y, color.Gray{Y: uint8(float64(leftVal.GrayAt(x, y).Y) - rightVal)})
-				}
-			}
-			return &object.Raster{Value: canvas}
-		case "*":
-			for y := b.Min.Y; y < b.Max.Y; y++ {
-				for x := b.Min.X; x < b.Max.X; x++ {
-					canvas.Set(x, y, color.Gray{Y: uint8(float64(leftVal.GrayAt(x, y).Y) * rightVal)})
-				}
-			}
-			return &object.Raster{Value: canvas}
-		case "/":
-			for y := b.Min.Y; y < b.Max.Y; y++ {
-				for x := b.Min.X; x < b.Max.X; x++ {
-					canvas.Set(x, y, color.Gray{Y: uint8(float64(leftVal.GrayAt(x, y).Y) / rightVal)})
-				}
-			}
-			return &object.Raster{Value: canvas}
-		default:
-			return newError("unknown operator: %s %s %s",
-				left.Type(), operator, right.Type())
+	canvas := make([]float32, leftVal.Width*leftVal.Height)
+	switch operator {
+	case "+":
+		for i, val := range leftVal.Data {
+			canvas[i] = val + rightVal
 		}
-	case *image.Gray16:
-		canvas := image.NewGray16(leftVal.Bounds())
-		b := leftVal.Bounds()
-		switch operator {
-		case "+":
-			for y := b.Min.Y; y < b.Max.Y; y++ {
-				for x := b.Min.X; x < b.Max.X; x++ {
-					canvas.Set(x, y, color.Gray16{Y: uint16(float64(leftVal.Gray16At(x, y).Y) + rightVal)})
-				}
-			}
-			return &object.Raster{Value: canvas}
-		case "-":
-			for y := b.Min.Y; y < b.Max.Y; y++ {
-				for x := b.Min.X; x < b.Max.X; x++ {
-					canvas.Set(x, y, color.Gray16{Y: uint16(float64(leftVal.Gray16At(x, y).Y) - rightVal)})
-				}
-			}
-			return &object.Raster{Value: canvas}
-		case "*":
-			for y := b.Min.Y; y < b.Max.Y; y++ {
-				for x := b.Min.X; x < b.Max.X; x++ {
-					canvas.Set(x, y, color.Gray16{Y: uint16(float64(leftVal.Gray16At(x, y).Y) * rightVal)})
-				}
-			}
-			return &object.Raster{Value: canvas}
-		case "/":
-			for y := b.Min.Y; y < b.Max.Y; y++ {
-				for x := b.Min.X; x < b.Max.X; x++ {
-					canvas.Set(x, y, color.Gray16{Y: uint16(float64(leftVal.Gray16At(x, y).Y) / rightVal)})
-				}
-			}
-			return &object.Raster{Value: canvas}
-		default:
-			return newError("unknown operator: %s %s %s",
-				left.Type(), operator, right.Type())
+		return &object.Raster{Value: raster.FlexRaster{leftVal.RasterType, int(leftVal.Width), int(leftVal.Height), canvas, leftVal.NoData}}
+	case "-":
+		for i, val := range leftVal.Data {
+			canvas[i] = val - rightVal
 		}
-		return &object.Raster{Value: canvas}
+		return &object.Raster{Value: raster.FlexRaster{leftVal.RasterType, int(leftVal.Width), int(leftVal.Height), canvas, leftVal.NoData}}
+	case "*":
+		for i, val := range leftVal.Data {
+			canvas[i] = val * rightVal
+		}
+		return &object.Raster{Value: raster.FlexRaster{leftVal.RasterType, int(leftVal.Width), int(leftVal.Height), canvas, leftVal.NoData}}
+	case "/":
+		for i, val := range leftVal.Data {
+			canvas[i] = val / rightVal
+		}
+		return &object.Raster{Value: raster.FlexRaster{leftVal.RasterType, int(leftVal.Width), int(leftVal.Height), canvas, leftVal.NoData}}
+	case "==":
+		for i, val := range leftVal.Data {
+			if val == rightVal {
+				canvas[i] = 1.0
+			} else {
+				canvas[i] = 0.0
+			}
+		}
+		return &object.Raster{Value: raster.FlexRaster{raster.BOOL, int(leftVal.Width), int(leftVal.Height), canvas, leftVal.NoData}}
 	default:
-		return newError("unknown raster type: %s %s %s",
+		return newError("unknown operator: %s %s %s",
 			left.Type(), operator, right.Type())
 	}
 }
 
 func evalNUMBERRASTERInfixExpression(operator string, left, right object.Object) object.Object {
+	rightVal := right.(*object.Raster).Value
 	leftVal := left.(*object.Number).Value
 
-	switch rightVal := right.(*object.Raster).Value.(type) {
-	case *image.Gray:
-		canvas := image.NewGray(rightVal.Bounds())
-		b := rightVal.Bounds()
-		switch operator {
-		case "+":
-			for y := b.Min.Y; y < b.Max.Y; y++ {
-				for x := b.Min.X; x < b.Max.X; x++ {
-					canvas.Set(x, y, color.Gray{Y: uint8(float64(rightVal.GrayAt(x, y).Y) + leftVal)})
-				}
-			}
-			return &object.Raster{Value: canvas}
-		case "-":
-			for y := b.Min.Y; y < b.Max.Y; y++ {
-				for x := b.Min.X; x < b.Max.X; x++ {
-					canvas.Set(x, y, color.Gray{Y: uint8(float64(rightVal.GrayAt(x, y).Y) - leftVal)})
-				}
-			}
-			return &object.Raster{Value: canvas}
-		case "*":
-			for y := b.Min.Y; y < b.Max.Y; y++ {
-				for x := b.Min.X; x < b.Max.X; x++ {
-					canvas.Set(x, y, color.Gray{Y: uint8(float64(rightVal.GrayAt(x, y).Y) * leftVal)})
-				}
-			}
-			return &object.Raster{Value: canvas}
-		case "/":
-			for y := b.Min.Y; y < b.Max.Y; y++ {
-				for x := b.Min.X; x < b.Max.X; x++ {
-					canvas.Set(x, y, color.Gray{Y: uint8(float64(rightVal.GrayAt(x, y).Y) / leftVal)})
-				}
-			}
-			return &object.Raster{Value: canvas}
-		default:
-			return newError("unknown operator: %s %s %s",
-				left.Type(), operator, right.Type())
+	canvas := make([]float32, rightVal.Width*rightVal.Height)
+	switch operator {
+	case "+":
+		for i, val := range rightVal.Data {
+			canvas[i] = val + leftVal
 		}
-	case *image.Gray16:
-		canvas := image.NewGray16(rightVal.Bounds())
-		b := rightVal.Bounds()
-		switch operator {
-		case "+":
-			for y := b.Min.Y; y < b.Max.Y; y++ {
-				for x := b.Min.X; x < b.Max.X; x++ {
-					canvas.Set(x, y, color.Gray16{Y: uint16(float64(rightVal.Gray16At(x, y).Y) + leftVal)})
-				}
-			}
-			return &object.Raster{Value: canvas}
-		case "-":
-			for y := b.Min.Y; y < b.Max.Y; y++ {
-				for x := b.Min.X; x < b.Max.X; x++ {
-					canvas.Set(x, y, color.Gray16{Y: uint16(float64(rightVal.Gray16At(x, y).Y) - leftVal)})
-				}
-			}
-			return &object.Raster{Value: canvas}
-		case "*":
-			for y := b.Min.Y; y < b.Max.Y; y++ {
-				for x := b.Min.X; x < b.Max.X; x++ {
-					canvas.Set(x, y, color.Gray16{Y: uint16(float64(rightVal.Gray16At(x, y).Y) * leftVal)})
-				}
-			}
-			return &object.Raster{Value: canvas}
-		case "/":
-			for y := b.Min.Y; y < b.Max.Y; y++ {
-				for x := b.Min.X; x < b.Max.X; x++ {
-					canvas.Set(x, y, color.Gray16{Y: uint16(float64(rightVal.Gray16At(x, y).Y) / leftVal)})
-				}
-			}
-			return &object.Raster{Value: canvas}
-		default:
-			return newError("unknown operator: %s %s %s",
-				left.Type(), operator, right.Type())
+		return &object.Raster{Value: raster.FlexRaster{rightVal.RasterType, int(rightVal.Width), int(rightVal.Height), canvas, rightVal.NoData}}
+	case "-":
+		for i, val := range rightVal.Data {
+			canvas[i] = val - leftVal
 		}
-		return &object.Raster{Value: canvas}
+		return &object.Raster{Value: raster.FlexRaster{rightVal.RasterType, int(rightVal.Width), int(rightVal.Height), canvas, rightVal.NoData}}
+	case "*":
+		for i, val := range rightVal.Data {
+			canvas[i] = val * leftVal
+		}
+		return &object.Raster{Value: raster.FlexRaster{rightVal.RasterType, int(rightVal.Width), int(rightVal.Height), canvas, rightVal.NoData}}
+	case "/":
+		for i, val := range rightVal.Data {
+			canvas[i] = val / leftVal
+		}
+		return &object.Raster{Value: raster.FlexRaster{rightVal.RasterType, int(rightVal.Width), int(rightVal.Height), canvas, rightVal.NoData}}
+	case "==":
+		for i, val := range rightVal.Data {
+			if val == leftVal {
+				canvas[i] = 1.0
+			} else {
+				canvas[i] = 0.0
+			}
+		}
+		return &object.Raster{Value: raster.FlexRaster{raster.BOOL, int(rightVal.Width), int(rightVal.Height), canvas, rightVal.NoData}}
 	default:
-		return newError("unknown raster type: %s %s %s",
+		return newError("unknown operator: %s %s %s",
 			left.Type(), operator, right.Type())
 	}
 }
 
 func evalRASTERInfixExpression(operator string, left, right object.Object) object.Object {
+	leftVal := left.(*object.Raster).Value
+	rightVal := right.(*object.Raster).Value
 
-	leftVal, okLeft := left.(*object.Raster).Value.(*image.Gray)
-	rightVal, okRight := right.(*object.Raster).Value.(*image.Gray)
-	if okLeft && okRight {
-		canvas := image.NewGray(rightVal.Bounds())
-		b := rightVal.Bounds()
-		switch operator {
-		case "+":
-			for y := b.Min.Y; y < b.Max.Y; y++ {
-				for x := b.Min.X; x < b.Max.X; x++ {
-					canvas.Set(x, y, color.Gray{Y: leftVal.GrayAt(x, y).Y + rightVal.GrayAt(x, y).Y})
-				}
-			}
-			return &object.Raster{Value: canvas}
-		case "-":
-			for y := b.Min.Y; y < b.Max.Y; y++ {
-				for x := b.Min.X; x < b.Max.X; x++ {
-					canvas.Set(x, y, color.Gray{Y: leftVal.GrayAt(x, y).Y - rightVal.GrayAt(x, y).Y})
-				}
-			}
-			return &object.Raster{Value: canvas}
-		case "*":
-			for y := b.Min.Y; y < b.Max.Y; y++ {
-				for x := b.Min.X; x < b.Max.X; x++ {
-					canvas.Set(x, y, color.Gray{Y: leftVal.GrayAt(x, y).Y * rightVal.GrayAt(x, y).Y})
-				}
-			}
-			return &object.Raster{Value: canvas}
-		case "/":
-			for y := b.Min.Y; y < b.Max.Y; y++ {
-				for x := b.Min.X; x < b.Max.X; x++ {
-					if rightVal.GrayAt(x, y).Y != 0 {
-						canvas.Set(x, y, color.Gray{Y: leftVal.GrayAt(x, y).Y / rightVal.GrayAt(x, y).Y})
-					}
-				}
-			}
-			return &object.Raster{Value: canvas}
-		default:
-			return newError("unknown operator: %s %s %s",
-				left.Type(), operator, right.Type())
-		}
+	if leftVal.Width != rightVal.Width || leftVal.Height != rightVal.Height {
+		return newError("non compatible rasters: Different width/height dimensions found.", leftVal.Width, leftVal.Height, rightVal.Width, rightVal.Height)
 	}
 
-	left16Val, okLeft := left.(*object.Raster).Value.(*image.Gray16)
-	right16Val, okRight := right.(*object.Raster).Value.(*image.Gray16)
-	if okLeft && okRight {
-		canvas := image.NewGray16(right16Val.Bounds())
-		b := right16Val.Bounds()
-		switch operator {
-		case "+":
-			for y := b.Min.Y; y < b.Max.Y; y++ {
-				for x := b.Min.X; x < b.Max.X; x++ {
-					canvas.Set(x, y, color.Gray16{Y: left16Val.Gray16At(x, y).Y + right16Val.Gray16At(x, y).Y})
-				}
-			}
-			return &object.Raster{Value: canvas}
-		case "-":
-			for y := b.Min.Y; y < b.Max.Y; y++ {
-				for x := b.Min.X; x < b.Max.X; x++ {
-					canvas.Set(x, y, color.Gray16{Y: left16Val.Gray16At(x, y).Y - right16Val.Gray16At(x, y).Y})
-				}
-			}
-			return &object.Raster{Value: canvas}
-		case "*":
-			for y := b.Min.Y; y < b.Max.Y; y++ {
-				for x := b.Min.X; x < b.Max.X; x++ {
-					canvas.Set(x, y, color.Gray16{Y: left16Val.Gray16At(x, y).Y * right16Val.Gray16At(x, y).Y})
-				}
-			}
-			return &object.Raster{Value: canvas}
-		case "/":
-			for y := b.Min.Y; y < b.Max.Y; y++ {
-				for x := b.Min.X; x < b.Max.X; x++ {
-					if right16Val.Gray16At(x, y).Y != 0 {
-						canvas.Set(x, y, color.Gray16{Y: left16Val.Gray16At(x, y).Y / right16Val.Gray16At(x, y).Y})
-					}
-				}
-			}
-			return &object.Raster{Value: canvas}
-		default:
-			return newError("unknown operator: %s %s %s",
-				left.Type(), operator, right.Type())
-		}
+	if len(leftVal.Data) != len(rightVal.Data) {
+		return newError("non compatible rasters: Different data dimensions found: %d and %d", len(leftVal.Data), len(rightVal.Data))
 	}
-	return newError("unknown operator: %s %s %s", left.Type(), operator, right.Type())
+
+	canvas := make([]float32, leftVal.Width*leftVal.Height)
+
+	switch operator {
+	case "#":
+		fmt.Println("AAAAAAAAAAAAAAA")
+		if rightVal.RasterType != raster.BOOL {
+			return newError("Raster on the right must be a Boolean raster type.")
+		}
+		for i, val := range rightVal.Data {
+			if val == 1.0 {
+				canvas[i] = leftVal.NoData
+			} else {
+				fmt.Println("AAAA", leftVal.Data[i])
+				canvas[i] = leftVal.Data[i]
+			}
+		}
+		return &object.Raster{Value: raster.FlexRaster{leftVal.RasterType, int(leftVal.Width), int(leftVal.Height), canvas, leftVal.NoData}}
+	}
+
+	if leftVal.RasterType != rightVal.RasterType {
+		return newError("non compatible rasters: Different RasterType values found.")
+	}
+
+	if leftVal.NoData != rightVal.NoData {
+		return newError("non compatible rasters: Different NoData values found.")
+	}
+
+	switch operator {
+	case "+":
+		for i, val := range leftVal.Data {
+			canvas[i] = val + rightVal.Data[i]
+		}
+		return &object.Raster{Value: raster.FlexRaster{leftVal.RasterType, int(leftVal.Width), int(leftVal.Height), canvas, leftVal.NoData}}
+	case "-":
+		for i, val := range leftVal.Data {
+			canvas[i] = val - rightVal.Data[i]
+		}
+		return &object.Raster{Value: raster.FlexRaster{leftVal.RasterType, int(leftVal.Width), int(leftVal.Height), canvas, leftVal.NoData}}
+	case "*":
+		for i, val := range leftVal.Data {
+			canvas[i] = val * rightVal.Data[i]
+		}
+		return &object.Raster{Value: raster.FlexRaster{leftVal.RasterType, int(leftVal.Width), int(leftVal.Height), canvas, leftVal.NoData}}
+	case "/":
+		for i, val := range leftVal.Data {
+			canvas[i] = val / rightVal.Data[i]
+		}
+		return &object.Raster{Value: raster.FlexRaster{leftVal.RasterType, int(leftVal.Width), int(leftVal.Height), canvas, leftVal.NoData}}
+	}
+
+	return newError("unknown operator: %s %s %s",
+		left.Type(), operator, right.Type())
 }
 
 func evalIdentifier(node *ast.Identifier, env *object.Environment) object.Object {
-	im, err := raster.GetRaster(node.Value)
+	r, err := raster.GetRaster(node.Value)
 	if err != nil {
 		return newError("Raster reading operation failed")
 	}
-	return &object.Raster{Value: im}
+	return &object.Raster{Value: *r}
 }
 
 func isTruthy(obj object.Object) bool {

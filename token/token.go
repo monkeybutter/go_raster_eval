@@ -10,6 +10,9 @@ const (
 	IDENT  = "IDENT"  // B1, red, ...
 	NUMBER = "NUMBER" // 1343.456
 
+	// Special Raster Operators
+	FILTER = "#"
+
 	// Operators
 	PLUS     = "+"
 	MINUS    = "-"
@@ -40,8 +43,8 @@ type Token struct {
 }
 
 var keywords = map[string]TokenType{
-	"true":   TRUE,
-	"false":  FALSE,
+	"true":  TRUE,
+	"false": FALSE,
 }
 
 func LookupIdent(ident string) TokenType {
