@@ -1,8 +1,20 @@
 package raster
 
+// #include "gdal.h"
+// #include "cpl_string.h"
+// #cgo LDFLAGS: -lgdal
+// char**
+// get_open_options(int level)
+// {
+//	  char **papszOptions = NULL;
+//	  papszOptions = CSLSetNameValue(papszOptions, "OVERVIEW_LEVEL", CPLSPrintf("%d", level));
+//	  return papszOptions;
+// }
+import "C"
+
 import (
 	"fmt"
-	"strconv"
+	"unsafe"
 )
 
 const SIZE_OF_UINT16 = 2
@@ -19,35 +31,10 @@ const (
 
 type FlexRaster struct {
 	RasterType
-	Height, Width int
+	Width, Height int
 	Data          []float32
 	NoData        float32
 }
-
-func GetRaster(band string) (*FlexRaster, error) {
-	fmt.Println(band)
-	value, _ := strconv.ParseFloat(band[1:], 32)
-
-	out := make([]float32, int(256*256))
-	for i, _ := range out {
-		out[i] = float32(value)
-	}
-
-	return &FlexRaster{UINT16, 256, 256, out, 0.0}, nil
-}
-
-/*
-// #include "gdal.h"
-// #include "cpl_string.h"
-// #cgo LDFLAGS: -lgdal
-// char**
-// get_open_options(int level)
-// {
-//	  char **papszOptions = NULL;
-//	  papszOptions = CSLSetNameValue(papszOptions, "OVERVIEW_LEVEL", CPLSPrintf("%d", level));
-//	  return papszOptions;
-// }
-import "C"
 
 func GetRaster(band string) (*FlexRaster, error) {
 	C.GDALAllRegister()
@@ -71,7 +58,8 @@ func GetRaster(band string) (*FlexRaster, error) {
 
 	nXSize := C.GDALGetRasterBandXSize(hBand)
 	nYSize := C.GDALGetRasterBandYSize(hBand)
-	nodata := float32(C.GDALGetRasterNoDataValue(hBand, nil))
+        fmt.Println("Raster", nXSize, nYSize)
+	nodata := float32(uint16(C.GDALGetRasterNoDataValue(hBand, nil)))
 	canvas := make([]uint16, int(nXSize*nYSize))
 	C.GDALRasterIO(hBand, C.GF_Read, 0, 0, nXSize, nYSize, unsafe.Pointer(&canvas[0]), nXSize, nYSize, C.GDT_UInt16, 0, 0)
 
@@ -82,32 +70,3 @@ func GetRaster(band string) (*FlexRaster, error) {
 
 	return &FlexRaster{UINT16, int(nXSize), int(nYSize), out, nodata}, nil
 }
-
-func SaveRaster(path string, rast FlexRaster) error {
-	out, err := os.Create(path)
-	if err != nil {
-		return err
-	}
-	err = png.Encode(out, img)
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
-func main() {
-	img, err := GetLS8Raster("./LC81390452014295LGN00_B1.TIF")
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-
-	fmt.Println(len(img.Pix))
-	err = SaveRaster("./out.png", img)
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-	fmt.Println("Done")
-
-}*/

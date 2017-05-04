@@ -112,17 +112,14 @@ func evalPrefixExpression(operator string, right object.Object) object.Object {
 	}
 }
 
-func evalInfixExpression(
-	operator string,
-	left, right object.Object,
-) object.Object {
+func evalInfixExpression(operator string, left, right object.Object) object.Object {
 	switch {
 	case left.Type() == object.NUMBER_OBJ && right.Type() == object.NUMBER_OBJ:
 		return evalNUMBERInfixExpression(operator, left, right)
 	case left.Type() == object.RASTER_OBJ && right.Type() == object.NUMBER_OBJ:
 		return evalRASTERNUMBERInfixExpression(operator, left, right)
 	case left.Type() == object.NUMBER_OBJ && right.Type() == object.RASTER_OBJ:
-		return evalNUMBERRASTERInfixExpression(operator, left, right)
+		return evalRASTERNUMBERInfixExpression(operator, right, left)
 	case left.Type() == object.RASTER_OBJ && right.Type() == object.RASTER_OBJ:
 		return evalRASTERInfixExpression(operator, left, right)
 	case operator == "==":
@@ -188,8 +185,8 @@ func evalNUMBERInfixExpression(operator string, left, right object.Object) objec
 }
 
 func evalRASTERNUMBERInfixExpression(operator string, left, right object.Object) object.Object {
-	rightVal := right.(*object.Number).Value
 	leftVal := left.(*object.Raster).Value
+	rightVal := right.(*object.Number).Value
 
 	canvas := make([]float32, leftVal.Width*leftVal.Height)
 	switch operator {
@@ -214,78 +211,54 @@ func evalRASTERNUMBERInfixExpression(operator string, left, right object.Object)
 		}
 		return &object.Raster{Value: raster.FlexRaster{leftVal.RasterType, int(leftVal.Width), int(leftVal.Height), canvas, leftVal.NoData}}
 	case "==":
-		for i, val := range leftVal.Data {
-			if val == rightVal {
-				canvas[i] = 1.0
-			} else {
-				canvas[i] = 0.0
+		fmt.Println("Comparison", leftVal.Width, leftVal.Height)
+		switch leftVal.RasterType {
+		case raster.UINT16:	
+			for i, val := range leftVal.Data {
+				mask := uint16(rightVal)
+				if (uint16(val) & mask) > 0 {
+					canvas[i] = 1.0
+				} else {
+					canvas[i] = 0.0
+				}
 			}
-		}
+		case raster.INT16:	
+			for i, val := range leftVal.Data {
+				mask := int16(rightVal)
+				if (int16(val) & mask) > 0 {
+					canvas[i] = 1.0
+				} else {
+					canvas[i] = 0.0
+				}
+			}
+		default:
+			return newError(fmt.Sprintf("Masking not implemented for type %s", leftVal.RasterType))
+			
+		}	
 		return &object.Raster{Value: raster.FlexRaster{raster.BOOL, int(leftVal.Width), int(leftVal.Height), canvas, leftVal.NoData}}
 	default:
-		return newError("unknown operator: %s %s %s",
-			left.Type(), operator, right.Type())
-	}
-}
-
-func evalNUMBERRASTERInfixExpression(operator string, left, right object.Object) object.Object {
-	rightVal := right.(*object.Raster).Value
-	leftVal := left.(*object.Number).Value
-
-	canvas := make([]float32, rightVal.Width*rightVal.Height)
-	switch operator {
-	case "+":
-		for i, val := range rightVal.Data {
-			canvas[i] = val + leftVal
-		}
-		return &object.Raster{Value: raster.FlexRaster{rightVal.RasterType, int(rightVal.Width), int(rightVal.Height), canvas, rightVal.NoData}}
-	case "-":
-		for i, val := range rightVal.Data {
-			canvas[i] = val - leftVal
-		}
-		return &object.Raster{Value: raster.FlexRaster{rightVal.RasterType, int(rightVal.Width), int(rightVal.Height), canvas, rightVal.NoData}}
-	case "*":
-		for i, val := range rightVal.Data {
-			canvas[i] = val * leftVal
-		}
-		return &object.Raster{Value: raster.FlexRaster{rightVal.RasterType, int(rightVal.Width), int(rightVal.Height), canvas, rightVal.NoData}}
-	case "/":
-		for i, val := range rightVal.Data {
-			canvas[i] = val / leftVal
-		}
-		return &object.Raster{Value: raster.FlexRaster{rightVal.RasterType, int(rightVal.Width), int(rightVal.Height), canvas, rightVal.NoData}}
-	case "==":
-		for i, val := range rightVal.Data {
-			if val == leftVal {
-				canvas[i] = 1.0
-			} else {
-				canvas[i] = 0.0
-			}
-		}
-		return &object.Raster{Value: raster.FlexRaster{raster.BOOL, int(rightVal.Width), int(rightVal.Height), canvas, rightVal.NoData}}
-	default:
-		return newError("unknown operator: %s %s %s",
-			left.Type(), operator, right.Type())
+		return newError(fmt.Sprintf("unknown operator: %s %s %s",
+			left.Type(), operator, right.Type()))
 	}
 }
 
 func evalRASTERInfixExpression(operator string, left, right object.Object) object.Object {
 	leftVal := left.(*object.Raster).Value
 	rightVal := right.(*object.Raster).Value
-
+	fmt.Println(leftVal.Width, leftVal.Height, rightVal.Width, rightVal.Height)
 	if leftVal.Width != rightVal.Width || leftVal.Height != rightVal.Height {
-		return newError("non compatible rasters: Different width/height dimensions found.", leftVal.Width, leftVal.Height, rightVal.Width, rightVal.Height)
+		return newError(fmt.Sprintf("non compatible rasters: Different width/height dimensions found. %d*%d %d*%d", leftVal.Width, leftVal.Height, rightVal.Width, rightVal.Height))
 	}
 
 	if len(leftVal.Data) != len(rightVal.Data) {
-		return newError("non compatible rasters: Different data dimensions found: %d and %d", len(leftVal.Data), len(rightVal.Data))
+		return newError(fmt.Sprintf("non compatible rasters: Different data dimensions found: %d and %d", len(leftVal.Data), len(rightVal.Data)))
 	}
 
 	canvas := make([]float32, leftVal.Width*leftVal.Height)
 
 	switch operator {
 	case "#":
-		fmt.Println("AAAAAAAAAAAAAAA")
+		fmt.Println("Start filtering")
 		if rightVal.RasterType != raster.BOOL {
 			return newError("Raster on the right must be a Boolean raster type.")
 		}
@@ -293,10 +266,10 @@ func evalRASTERInfixExpression(operator string, left, right object.Object) objec
 			if val == 1.0 {
 				canvas[i] = leftVal.NoData
 			} else {
-				fmt.Println("AAAA", leftVal.Data[i])
 				canvas[i] = leftVal.Data[i]
 			}
 		}
+		fmt.Println("Done filtering")
 		return &object.Raster{Value: raster.FlexRaster{leftVal.RasterType, int(leftVal.Width), int(leftVal.Height), canvas, leftVal.NoData}}
 	}
 
